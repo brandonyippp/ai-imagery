@@ -22,6 +22,7 @@ def create_bigram_freq_dict():
         return sorted(bigram_frequencies.items(), key = lambda kv: -kv[1])
 
 # Create a 2D tensor where rows = start char & col = next char (char that comes next in sequence)
+# NOTE: Can change zeros -> ones to add 'fake counts', or adjust in probability P directly
 def create_bigram_freq_tensor():
     freq_2d = torch.zeros((len(vocab), len(vocab)), dtype = torch.int32)
 
@@ -39,7 +40,7 @@ def create_bigram_freq_tensor():
 # NOTE: Broadcasting semantics @ PyTorch about how tensors of unequal length can still perform element-wise op.
 def create_probabilities(vocab_frequencies: torch.Tensor):
     # convert freq array into list of probabilities and sum into column vector
-    P = vocab_frequencies.float()
+    P = vocab_frequencies.float() # NOTE: Do P = (vocab_frequencies + <fake_weight_count>) here to avoid -inf -> bigger = more uniform, less = more peaked
     P /= P.sum(1, keepdim = True)
 
     return P
@@ -66,6 +67,32 @@ def sample_model(P):
         
     return results
 
+def calculate_loss(data):
+    # GOAL: maximize likelihood of the data w.r.t. model parameters (statistical modeling)
+    # equivalent to maximizing the log likelihood (because log is monotonic)
+    # equivalent to minimizing the negative log likelihood
+    # equivalent to minimizing the average negative log likelihood
+
+    # log(a*b*c) = log(a) + log(b) + log(c)
+
+    log_likelihood = 0.0
+    n = 0
+
+    for word in data[:5]:
+        chrs = [special_char] + list(word) + [special_char]
+        for ch1, ch2 in zip(chrs, chrs[1:]):
+            ix1 = stoi[ch1]
+            ix2 = stoi[ch2]
+            prob = P[ix1, ix2]
+            logprob = torch.log(prob)
+            log_likelihood += logprob
+            n += 1
+            #print(f'{ch1}{ch2}: {prob:.4f} {logprob:.4f}')
+
+        print(f'log_likelihood: {log_likelihood=}')
+        nll = -log_likelihood
+        print(f'{nll=}')
+        print(f'{nll/n}')
 
 vocab = initialize_vocab(data)
 stoi = {s:i for i, s in enumerate(vocab)}
@@ -74,3 +101,5 @@ vocab_frequencies = create_bigram_freq_tensor()
 P = create_probabilities(vocab_frequencies)
 
 sample = sample_model(P)
+
+calculate_loss(data)
